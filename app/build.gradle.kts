@@ -77,4 +77,6 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
     implementation("androidx.security:security-crypto-ktx:1.1.0-beta01")
+    implementation("com.mapbox.maps:android:11.13.1")
+    implementation("com.mapbox.extension:maps-compose:11.13.1")
 }
