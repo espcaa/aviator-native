@@ -2,7 +2,6 @@ package eu.espcaa.aviator
 
 import AuthScreen
 import android.annotation.SuppressLint
-import android.app.Application
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
@@ -16,18 +15,19 @@ import androidx.compose.ui.Modifier
 import eu.espcaa.aviator.ui.theme.AviatorTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.State
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import eu.espcaa.aviator.screens.LoadingScreen
-import eu.espcaa.aviator.screens.main.MainAppScreen
+import eu.espcaa.aviator.screens.MainAppScreen
 import kotlinx.coroutines.delay
 import androidx.lifecycle.viewModelScope
-import com.google.gson.GsonBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import eu.espcaa.aviator.scripts.CreateAccountApi
+import eu.espcaa.aviator.scripts.EmailExistsApi
 import eu.espcaa.aviator.scripts.LoginApi
 import eu.espcaa.aviator.scripts.LoginRequest
+import eu.espcaa.aviator.scripts.OtpApi
 import jakarta.inject.Inject
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
@@ -67,6 +67,9 @@ object ApiClient {
         .build()
 
     val loginApi : LoginApi = retrofit.create(LoginApi::class.java)
+    val otpApi: OtpApi = retrofit.create(OtpApi::class.java)
+    val emailExistsApi : EmailExistsApi = retrofit.create(EmailExistsApi::class.java)
+    val userCreationApi : CreateAccountApi = retrofit.create(CreateAccountApi::class.java)
 }
 
 

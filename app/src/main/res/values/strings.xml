@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Aviator</string>
+    <string name="map_screen_title">Map</string>
+    <string name="flight_log_screen_title">Flight Log</string>
+    <string name="passport_screen_title">Passport</string>
+    <string name="settings_screen_title">Settings</string>
 </resources>
