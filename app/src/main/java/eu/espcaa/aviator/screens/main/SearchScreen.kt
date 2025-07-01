@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -29,7 +30,8 @@ fun SearchScreen(
     type: String, // "airline" or "airport"
     authState: AuthState,
     fieldId: Number = 0,
-    onSelect : (String, Number) -> Unit
+    onSelect : (String, Number) -> Unit,
+    navController : NavController
 ) {
     val searchQuery = remember { mutableStateOf("") }
     val isLoading = remember { mutableStateOf(false) }
@@ -107,6 +109,8 @@ fun SearchScreen(
                 "airline" -> airlineResults.value.forEach { airline ->
                     Card(modifier = Modifier.padding(vertical = 8.dp, horizontal = 16.dp).clickable{
                         onSelect(airline.code, fieldId)
+                        // go back to previous screen
+                        navController.navigate("flight_log?showBottomSheet=true")
                     }) {
                         Row (
                             modifier = Modifier
@@ -147,6 +151,8 @@ fun SearchScreen(
                 "airport" -> airportResults.value.forEach { airport ->
                     Card(modifier = Modifier.padding(vertical = 8.dp, horizontal = 16.dp).fillMaxWidth().clickable{
                         onSelect(airport.code, fieldId)
+                        // go back to previous screen
+                        navController.navigate("flight_log?showBottomSheet=true")
                     }) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(text = airport.code)
