@@ -1,5 +1,7 @@
 package eu.espcaa.aviator.screens
 
+import FlightLogScreen
+import android.util.Log
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -15,53 +17,74 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import eu.espcaa.aviator.ApiClient
+import eu.espcaa.aviator.AuthState
 import eu.espcaa.aviator.screens.main.MapScreen
-import eu.espcaa.aviator.screens.main.FlightLogScreen
 import eu.espcaa.aviator.screens.main.PassportScreen
 import eu.espcaa.aviator.screens.main.SettingsScreen
 import eu.espcaa.aviator.R
+import eu.espcaa.aviator.screens.main.SearchScreen
+import eu.espcaa.aviator.scripts.DeleteFlightRequest
+import eu.espcaa.aviator.scripts.GetFlightsRequest
+import kotlinx.coroutines.launch
 
 
 sealed class Screen(val route: String, val icon: Int, val titleResId: Int) {
     object Map : Screen("map",eu.espcaa.aviator.R.drawable.outline_globe_24, R.string.map_screen_title)
-    object FlightLog : Screen("flight log", eu.espcaa.aviator.R.drawable.outline_flight_24, R.string.flight_log_screen_title)
+    object FlightLog : Screen("flight_log", eu.espcaa.aviator.R.drawable.outline_flight_24, R.string.flight_log_screen_title)
     object Passport : Screen("passport",eu.espcaa.aviator.R.drawable.outline_confirmation_number_24, R.string.passport_screen_title)
     object Settings : Screen("settings", -1, -1)
+    object Search : Screen("search", -1, -1)
 }
 
-data class FlightLogEntry(
-    val id: String,
-    val origin: String,
-    val destination: String,
-    val airline: String,
-    val airliner : String,
-    val date: String
-
+data class Flight(
+    val airlineCode: String,
+    val departureCode: String,
+    val arrivalCode: String,
+    val departureAirportCoords : Pair<Double, Double>,
+    val arrivalAirportCoords : Pair<Double, Double>,
+    val departureDate: String,
+    val duration : String,
+    val flightId : String,
 )
 
 
-
 @Composable
-fun MainAppScreen(onLogout: () -> Unit) {
+fun MainAppScreen(onLogout: () -> Unit, authState: AuthState) {
     val navController = rememberNavController()
     val bottomNavScreens = listOf(Screen.Map, Screen.FlightLog, Screen.Passport)
+    val flightViewModel: FlightViewModel = viewModel()
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    if (authState is AuthState.Authenticated) {
+        LaunchedEffect(authState.sessionToken) {
+            flightViewModel.loadFlights(authState.sessionToken)
+        }
+    }
+
     Scaffold(
         bottomBar = {
-            if (currentRoute != Screen.Settings.route) {
+            if (currentRoute != Screen.Settings.route || currentRoute != Screen.Search.route) {
                 NavigationBar {
                     bottomNavScreens.forEach { screen ->
                         val selected = currentRoute == screen.route
@@ -101,17 +124,27 @@ fun MainAppScreen(onLogout: () -> Unit) {
                 popExitTransition = { fadeOut( animationSpec = tween(100)) }
 
             ) {
-                MapScreen(navController)
+                MapScreen(navController, flightViewModel)
             }
 
             composable(
-                route = Screen.FlightLog.route,
+                route = Screen.FlightLog.route + "?startLog={startLog}",
                 enterTransition = { fadeIn( animationSpec = tween(100)) },
                 exitTransition = { fadeOut( animationSpec = tween(100)) },
                 popEnterTransition = { fadeIn( animationSpec = tween(100)) },
-                popExitTransition = { fadeOut( animationSpec = tween(100)) }
+                popExitTransition = { fadeOut( animationSpec = tween(100)) },
+                arguments = listOf(
+                    navArgument("startLog") {
+                        type = NavType.BoolType
+                        defaultValue= false
+                    }
+                ),
             ) {
-                FlightLogScreen()
+                FlightLogScreen(
+                    authState = authState,
+                    flightViewModel = flightViewModel,
+                    navController = navController,
+                )
             }
 
             composable(
@@ -138,6 +171,106 @@ fun MainAppScreen(onLogout: () -> Unit) {
                     onLogout = onLogout
                 )
             }
+
+            composable(
+                route = Screen.Search.route + "?type={type}",
+                arguments = listOf(
+                    navArgument("type") {
+                        type = NavType.StringType
+                        defaultValue = "airline"
+                    }
+                ),
+                enterTransition = { fadeIn(animationSpec = tween(100)) },
+                exitTransition = { fadeOut(animationSpec = tween(100)) },
+                popEnterTransition = { fadeIn(animationSpec = tween(100)) },
+                popExitTransition = { fadeOut(animationSpec = tween(100)) }
+            ) { backStackEntry ->
+                val typeArg = backStackEntry.arguments?.getString("type") ?: "airline"
+
+                SearchScreen(
+                    authState = authState,
+                    type = typeArg,
+                    onSelect = { selectedValue, fieldId ->
+                        if (fieldId == 0) {
+                            flightViewModel.newFlightAirlineCode.value = selectedValue
+                        } else if (fieldId == 1) {
+                            flightViewModel.newFlightDepartureAirportCode.value = selectedValue
+                        } else if (fieldId == 2) {
+                            flightViewModel.newFlightArrivalAirportCode.value = selectedValue
+                        }
+                    }
+                )
+            }
         }
+    }
+}
+
+class FlightViewModel : ViewModel() {
+    val flights = mutableStateListOf<Flight>()
+
+    val newFlightAirlineCode = mutableStateOf("")
+    val newFlightDepartureAirportCode = mutableStateOf("")
+    val newFlightArrivalAirportCode = mutableStateOf("")
+    val newFlightSelectedDate = mutableStateOf("")
+    val newFlightDuration = mutableStateOf("")
+
+    fun loadFlights(sessionToken: String) {
+        viewModelScope.launch {
+            try {
+                val result = ApiClient.getFlightsApi.getFlights(
+                    GetFlightsRequest(sessionToken = sessionToken)
+                )
+                if (result.success) {
+                    flights.clear()
+                    flights.addAll(result.flights.map {
+                        Flight(
+                            airlineCode = it.airlineCode,
+                            departureCode = it.departureCode,
+                            arrivalCode = it.arrivalCode,
+                            departureAirportCoords = Pair(it.departureAirportLat, it.departureAirportLon) as Pair<Double, Double>,
+                            arrivalAirportCoords = Pair(it.arrivalAirportLat, it.arrivalAirportLon) as Pair<Double, Double>,
+                            departureDate = it.departureDate,
+                            duration = it.duration.toString(),
+                            flightId = it.flightId.toString()
+                        )
+                    })
+                }
+            } catch (e: Exception) {
+                Log.e("FlightViewModel", "Error loading flights: ${e.message}")
+                // Handle error, e.g., show a snackbar or log the error
+            }
+        }
+    }
+
+    fun addFlight(flight: Flight) {
+        flights.add(flight)
+    }
+
+    fun deleteFlight(flight: Flight, sessionToken: String) {
+        flights.remove(flight)
+        // call the api
+        try {
+            viewModelScope.launch {
+                val response = ApiClient.deleteFlightApi.deleteFlight(
+                    DeleteFlightRequest(
+                        sessionToken = sessionToken,
+                        flightId = flight.flightId
+                    )
+                )
+                if (!response.success) {
+                    Log.e("FlightViewModel", "Failed to delete flight: ${response.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FlightViewModel", "Error deleting flight: ${e.message}")
+        }
+    }
+
+    fun clearNewFlightInputs() {
+        newFlightAirlineCode.value = ""
+        newFlightDepartureAirportCode.value = ""
+        newFlightArrivalAirportCode.value = ""
+        newFlightSelectedDate.value = ""
+        newFlightDuration.value = ""
     }
 }

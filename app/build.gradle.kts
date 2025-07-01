@@ -79,4 +79,6 @@ dependencies {
     implementation("androidx.security:security-crypto-ktx:1.1.0-beta01")
     implementation("com.mapbox.maps:android:11.13.1")
     implementation("com.mapbox.extension:maps-compose:11.13.1")
+    implementation("io.coil-kt.coil3:coil-compose:3.2.0")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.2.0")
 }

@@ -1,5 +1,7 @@
 package eu.espcaa.aviator.screens.main
 
+import androidx.compose.ui.graphics.Color
+import android.graphics.Point
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,9 +10,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonColors
@@ -30,21 +34,46 @@ import eu.espcaa.aviator.R
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import com.mapbox.maps.extension.compose.annotation.generated.PolylineAnnotation
+import com.mapbox.maps.extension.style.layers.properties.generated.LineCap
+import com.mapbox.maps.extension.style.layers.properties.generated.LineJoin
+import eu.espcaa.aviator.screens.FlightViewModel
 
 
 @Composable
 fun MapScreen(
-    navController: NavController
+    navController: NavController,
+    flightViewModel : FlightViewModel
 ) {
     val satelliteEnabled = remember { mutableStateOf(false) }
 
-    Box {
+    Box (
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
         MapboxMap(modifier = Modifier.fillMaxSize(), scaleBar = {}, compass = {}, style = {
             if (satelliteEnabled.value) {
+                // ignore the error
                 MapboxStandardSatelliteStyle()
             } else {
                 MapboxStandardStyle()
             }
+            for (flight in flightViewModel.flights) {
+                val points = listOf(
+                    com.mapbox.geojson.Point.fromLngLat(flight.departureAirportCoords.second, flight.departureAirportCoords.first),
+                    com.mapbox.geojson.Point.fromLngLat(flight.arrivalAirportCoords.second, flight.arrivalAirportCoords.first)
+                )
+                PolylineAnnotation(points = points) {
+                    lineColor = Color(0xFF3F51B5)
+                    lineWidth = 9.0
+                    lineOpacity = 0.8
+                    lineJoin = LineJoin.ROUND
+                    lineBorderColor = Color(0xFFFFFFFF)
+                    lineBorderWidth = 1.0
+                }
+            }
+
         }
         )
         Column (
@@ -93,7 +122,8 @@ fun MapScreen(
                 }
                 }
             }
-
         }
+
     }
+
 }
